@@ -1,37 +1,121 @@
 import pandas as pd
 import numpy as np
-
-traindf = pd.read_csv("../raw_data/train.csv")
-
-testdf =pd.read_csv("../raw_data/test.csv")
-
-macro = pd.read_Csv("../raw_data/macro.csv")
-
-
-categoricalTrainFeatures = list(traindf.select_dtypes(exclude=['float64','int64']))
-
-categoricalTestFeatures = list(testdf.select_dtypes(exclude=['float64','int64']))
-
-traindf = HandleNanData(traindf, categoricalTrainFeatures)
+from sklearn import cross_validation
+import xgboost as xgb
 
 
 
 
 
+def xgboost_pred(train,labels,test,test_labels,final_test):
+    params = {}
+    params["objective"] = "reg:linear"
+    params["eval_metric"]="rmse"
+    params["eta"] = 0.02 #0.02 
+    params["min_child_weight"] = 6
+    params["subsample"] = 0.9 #although somehow values between 0.25 to 0.75 is recommended by Hastie
+    params["colsample_bytree"] = 0.7
+    params["scale_pos_weight"] = 1
+    params["silent"] = 1
+    params["max_depth"] = 8
+    params["alpha"]=0.01
+    
+    plst = list(params.items())
+
+    num_rounds = 20000
+    xgtest = xgb.DMatrix(final_test)
+
+    xgtrain = xgb.DMatrix(train, label=labels)
+    xgval = xgb.DMatrix(test, label=test_labels)
+ 
+    watchlist = [(xgtrain, 'train'),(xgval, 'val')]
+    model = xgb.train(plst, xgtrain, num_rounds, watchlist, early_stopping_rounds=30)
+
+    print 'ready to generate test data'
 
 
-
+    return model.predict(xgtest,ntree_limit=model.best_iteration)
 
 
 
 def HandleNanData(dataFrame, categoricalFeatureList):
 	
 	nanColumns = dataFrame.isnull().any()
-	for nancol in nanColumns:
+	nanColumnidx = nanColumns.index[nanColumns]
+	for nancol in nanColumnidx:
 		if nancol in categoricalFeatureList:
 			dataFrame[nancol].fillna(dataFrame[nancol].mode().ix[0], inplace=True)
 		else:
 			dataFrame[nancol].fillna(-2,inplace=True)
-	return dataFrame	
-		
+	return dataFrame
+
+
+
+def HandleCategoricalData(dataFrame, categoricalFeatureList):
+	
+	for catfeat in categoricalFeatureList:
+		dataFrame = pd.concat([dataFrame, pd.get_dummies(dataFrame[catfeat],      sparse=True)])
+		dataFrame = dataFrame.drop([catfeat],axis=1)
+	return dataFrame		
+
+def SplitTrainValData(data, label, val_size=0.2):
+	stratifiedShuffle = cross_validation.StratifiedShuffleSplit(label,n_iter=1,test_size=val_size)
+	for trainidx, testidx in stratifiedShuffle:
+		train, val = data.iloc[trainidx],data.iloc[validx]
+		trainlabel, vallabel = label.iloc[trainidx], label.iloc[validx]
+	return train, val, trainlabel, vallabel
+
+
+
+if __name__=="__main__":
+
+	traindf = pd.read_csv("../raw_data/RussianRealEstate/train.csv")
+
+	testdf =pd.read_csv("../raw_data/RussianRealEstate/test.csv")
+
+	macro = pd.read_csv("../raw_data/RussianRealEstate/macro.csv")
+
+	unifiedData = traindf.append(testdf)
+	unifiedData = pd.merge(unifiedData, macro, how = 'left', on=['timestamp'])
+
+	categoricalTrainFeatures = list(traindf.select_dtypes(exclude=['float64','int64','timestamp']))
+
+	categoricalTestFeatures = list(testdf.select_dtypes(exclude=['float64','int64','timestamp']))
+
+	categoricalMacroFeatures = list(macro.select_dtypes(exclude=['float64','int64','timestamp']))
+
+	traindf = HandleNanData(traindf, categoricalTrainFeatures)
+
+	testdf = HandleNanData(testdf, categoricalTestFeatures)
+
+	macro = HandleNanData(macro, categoricalMacroFeatures)
+
+	trainLabel = traindf['price_doc']
+
+	traindf.drop(['price_doc'], axis=1)
+
+	unifiedData = traindf.append(testdf)
+
+	unifiedData = 
+
+	unifiedData = HandleCategoricalData(unifiedData,categoricalTrainFeatures)
+
+	traindata = unifiedData.iloc[:len(traindf)-1]
+	testdata = unifiedData.iloc[len(traindf):]
+
+	trainData, valData, trainlabel, vallabel = SplitTrainValData(traindata)
+
+
+	trainData = np.array(trainData)
+	valData = np.array(valData)
+
+	pred=xgboost_pred(trainData, trainlabel, valData, vallabel)
+
+
+
+
+
+
+
+
 
