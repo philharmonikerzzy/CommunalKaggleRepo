@@ -47,6 +47,9 @@ def HandleNanData(dataFrame, categoricalFeatureList):
 			dataFrame[nancol].fillna(dataFrame[nancol].mode().ix[0], inplace=True)
 		else:
 			dataFrame[nancol].fillna(-2,inplace=True)
+	
+	nanColumns = dataFrame.isnull().any()
+	print str(len(nanColumns[nanColumns]))+" is still NaN"
 	return dataFrame
 
 
@@ -56,6 +59,7 @@ def HandleCategoricalData(dataFrame, categoricalFeatureList):
 	for catfeat in categoricalFeatureList:
 		dataFrame = pd.concat([dataFrame, pd.get_dummies(dataFrame[catfeat],      sparse=True)])
 		dataFrame = dataFrame.drop([catfeat],axis=1)
+	
 	return dataFrame		
 
 def SplitTrainValData(data, label, val_size=0.2):
@@ -75,30 +79,27 @@ if __name__=="__main__":
 
 	macro = pd.read_csv("../raw_data/RussianRealEstate/macro.csv")
 
-	unifiedData = traindf.append(testdf)
-	unifiedData = pd.merge(unifiedData, macro, how = 'left', on=['timestamp'])
-
-	categoricalTrainFeatures = list(traindf.select_dtypes(exclude=['float64','int64','timestamp']))
-
-	categoricalTestFeatures = list(testdf.select_dtypes(exclude=['float64','int64','timestamp']))
-
-	categoricalMacroFeatures = list(macro.select_dtypes(exclude=['float64','int64','timestamp']))
-
-	traindf = HandleNanData(traindf, categoricalTrainFeatures)
-
-	testdf = HandleNanData(testdf, categoricalTestFeatures)
-
-	macro = HandleNanData(macro, categoricalMacroFeatures)
-
 	trainLabel = traindf['price_doc']
 
+	
 	traindf.drop(['price_doc'], axis=1)
 
 	unifiedData = traindf.append(testdf)
 
-	unifiedData = 
 
-	unifiedData = HandleCategoricalData(unifiedData,categoricalTrainFeatures)
+	unifiedData = pd.merge(unifiedData, macro, how = 'left', on=['timestamp'])
+	
+	unifiedData['year']=pd.DatetimeIndex(unifiedData['timestamp']).year
+	unifiedData['month']=pd.DatetimeIndex(unifiedData['timestamp']).month
+	unifiedData['dayofweek']=pd.DatetimeIndex(unifiedData['timestamp']).dayofweek
+
+	unifiedData=unifiedData.drop(['timestamp'],axis=1)
+	categoricalFeatures = list(unifiedData.select_dtypes(exclude=['float64','int64']))
+	
+	unifiedData = HandleNanData(unifiedData, categoricalFeatures)
+	
+
+	unifiedData = HandleCategoricalData(unifiedData,categoricalFeatures)
 
 	traindata = unifiedData.iloc[:len(traindf)-1]
 	testdata = unifiedData.iloc[len(traindf):]
