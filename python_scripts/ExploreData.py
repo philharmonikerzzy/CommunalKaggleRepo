@@ -57,14 +57,15 @@ def HandleNanData(dataFrame, categoricalFeatureList):
 def HandleCategoricalData(dataFrame, categoricalFeatureList):
 	
 	for catfeat in categoricalFeatureList:
-		dataFrame = pd.concat([dataFrame, pd.get_dummies(dataFrame[catfeat],      sparse=True)])
+		print catfeat + " includes "+str(len(dataFrame[catfeat].unique()))+" different categorical values"
+		dataFrame = pd.concat([dataFrame, pd.get_dummies(dataFrame[catfeat],      sparse=False)],axis=1)
 		dataFrame = dataFrame.drop([catfeat],axis=1)
 	
 	return dataFrame		
 
 def SplitTrainValData(data, label, val_size=0.2):
-	stratifiedShuffle = cross_validation.StratifiedShuffleSplit(label,n_iter=1,test_size=val_size)
-	for trainidx, testidx in stratifiedShuffle:
+	stratifiedShuffle = cross_validation.ShuffleSplit(len(data), n_iter=1,test_size=val_size, random_state=0)
+	for trainidx, validx in stratifiedShuffle:
 		train, val = data.iloc[trainidx],data.iloc[validx]
 		trainlabel, vallabel = label.iloc[trainidx], label.iloc[validx]
 	return train, val, trainlabel, vallabel
@@ -104,13 +105,17 @@ if __name__=="__main__":
 	traindata = unifiedData.iloc[:len(traindf)-1]
 	testdata = unifiedData.iloc[len(traindf):]
 
-	trainData, valData, trainlabel, vallabel = SplitTrainValData(traindata)
+	trainData, valData, trainlabel, vallabel = SplitTrainValData(traindata,trainLabel)
 
 
 	trainData = np.array(trainData)
 	valData = np.array(valData)
+	testData = np.array(testdata)
+	trainlabel = np.log1p(trainlabel)
+	vallabel = np.log1p(vallabel)
 
-	pred=xgboost_pred(trainData, trainlabel, valData, vallabel)
+	pred=np.expm1(xgboost_pred(trainData, trainlabel, valData, vallabel, testData))
+	pd.write_csv('pred.csv')
 
 
 
