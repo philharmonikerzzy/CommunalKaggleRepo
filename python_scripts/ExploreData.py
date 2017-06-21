@@ -116,7 +116,7 @@ if __name__=="__main__":
 
 	pred=np.expm1(xgboost_pred(trainData, trainlabel, valData, vallabel, testData))
 	OutputPredictions = pd.DataFrame(pred, index = testdata['id'])
-	OutputPredictions.write_csv('submission1.csv',index=False)
+	OutputPredictions.to_csv('submission1.csv',index=False)
 
 
 
