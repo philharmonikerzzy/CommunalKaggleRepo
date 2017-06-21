@@ -115,7 +115,8 @@ if __name__=="__main__":
 	vallabel = np.log1p(vallabel)
 
 	pred=np.expm1(xgboost_pred(trainData, trainlabel, valData, vallabel, testData))
-	pd.write_csv('pred.csv')
+	OutputPredictions = pd.DataFrame(pred, index = testdata['id'])
+	OutputPredictions.write_csv('submission1.csv',index=False)
 
 
 
