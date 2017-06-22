@@ -2,8 +2,18 @@ import pandas as pd
 import numpy as np
 from sklearn import cross_validation
 import xgboost as xgb
+import time 
+import math
 
-
+def rmsle(h, y): 
+    """
+    Compute the Root Mean Squared Log Error for hypthesis h and targets y
+     
+    Args:
+        h - numpy array containing predictions with shape (n_samples, n_targets)
+        y - numpy array containing targets with shape (n_samples, n_targets)
+    """
+    return np.sqrt(np.square(np.log(h + 1) - np.log(y + 1)).mean())
 
 
 
@@ -15,11 +25,10 @@ def xgboost_pred(train,labels,test,test_labels,final_test):
     params["min_child_weight"] = 6
     params["subsample"] = 0.9 #although somehow values between 0.25 to 0.75 is recommended by Hastie
     params["colsample_bytree"] = 0.7
-    params["scale_pos_weight"] = 1
+    #params["scale_pos_weight"] = 1
     params["silent"] = 1
     params["max_depth"] = 8
-    params["alpha"]=0.01
-    
+    params["alpha"]=0.05
     plst = list(params.items())
 
     num_rounds = 20000
@@ -30,6 +39,9 @@ def xgboost_pred(train,labels,test,test_labels,final_test):
  
     watchlist = [(xgtrain, 'train'),(xgval, 'val')]
     model = xgb.train(plst, xgtrain, num_rounds, watchlist, early_stopping_rounds=30)
+
+    valpred = model.predict(xgval,ntree_limit=model.best_iteration)
+    print "current rmsle is " + str(rmsle(np.array(valpred), np.array(test_labels)))
 
     print 'ready to generate test data'
 
@@ -111,14 +123,15 @@ if __name__=="__main__":
 	trainData = np.array(trainData)
 	valData = np.array(valData)
 	testData = np.array(testdata)
-	trainlabel = np.log1p(trainlabel)
-	vallabel = np.log1p(vallabel)
+	#trainlabel = np.log1p(trainlabel)
+	#vallabel = np.log1p(vallabel)
 
-	pred=np.expm1(xgboost_pred(trainData, trainlabel, valData, vallabel, testData))
+	pred=xgboost_pred(trainData, trainlabel, valData, vallabel, testData)
 	OutputPredictions = pd.DataFrame(pred, index = testdata['id'])
-	OutputPredictions.to_csv('submission1.csv',index=False)
+	OutputPredictions.columns = [ 'price_doc']
+	OutputPredictions.to_csv('submission'+ time.strftime("%Y%m%d-%H%M")+".csv")
 
-
+	
 
 
 
