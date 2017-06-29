@@ -24,11 +24,11 @@ def xgboost_pred(train,labels,test,test_labels,final_test):
     params["eta"] = 0.02 #0.02 
     params["min_child_weight"] = 6
     params["subsample"] = 0.9 #although somehow values between 0.25 to 0.75 is recommended by Hastie
-    params["colsample_bytree"] = 0.7
+    #params["colsample_bytree"] = 1.0
     #params["scale_pos_weight"] = 1
-    params["silent"] = 1
-    params["max_depth"] = 8
-    params["alpha"]=0.05
+    #params["silent"] = 1
+    params["max_depth"] = 15
+    #params["alpha"]=0.05
     plst = list(params.items())
 
     num_rounds = 20000
@@ -75,7 +75,7 @@ def HandleCategoricalData(dataFrame, categoricalFeatureList):
 	
 	return dataFrame		
 
-def SplitTrainValData(data, label, val_size=0.2):
+def SplitTrainValData(data, label, val_size=0.3):
 	stratifiedShuffle = cross_validation.ShuffleSplit(len(data), n_iter=1,test_size=val_size, random_state=0)
 	for trainidx, validx in stratifiedShuffle:
 		train, val = data.iloc[trainidx],data.iloc[validx]
@@ -98,6 +98,7 @@ if __name__=="__main__":
 	traindf.drop(['price_doc'], axis=1)
 
 	unifiedData = traindf.append(testdf)
+	
 
 
 	unifiedData = pd.merge(unifiedData, macro, how = 'left', on=['timestamp'])
@@ -127,7 +128,7 @@ if __name__=="__main__":
 	#vallabel = np.log1p(vallabel)
 
 	pred=xgboost_pred(trainData, trainlabel, valData, vallabel, testData)
-	OutputPredictions = pd.DataFrame(pred, index = testdata['id'])
+	OutputPredictions = pd.DataFrame(pred, index = testdf['id'])
 	OutputPredictions.columns = [ 'price_doc']
 	OutputPredictions.to_csv('submission'+ time.strftime("%Y%m%d-%H%M")+".csv")
 
