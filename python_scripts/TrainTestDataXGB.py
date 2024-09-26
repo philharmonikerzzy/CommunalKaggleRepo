@@ -21,13 +21,13 @@ def xgboost_pred(train,labels,test,test_labels,final_test):
     params = {}
     params["objective"] = "reg:linear"
     params["eval_metric"]="rmse"
-    params["eta"] = 0.02 #0.02 
+    params["eta"] = 0.05 #0.02 
     params["min_child_weight"] = 6
-    params["subsample"] = 0.9 #although somehow values between 0.25 to 0.75 is recommended by Hastie
-    #params["colsample_bytree"] = 1.0
+    params["subsample"] = 1.0 #although somehow values between 0.25 to 0.75 is recommended by Hastie
+    params["colsample_bytree"] = 0.7
     #params["scale_pos_weight"] = 1
-    #params["silent"] = 1
-    params["max_depth"] = 15
+    params["silent"] = 1
+    params["max_depth"] = 5
     #params["alpha"]=0.05
     plst = list(params.items())
 
@@ -73,13 +73,22 @@ def HandleCategoricalData(dataFrame, categoricalFeatureList):
 		dataFrame = pd.concat([dataFrame, pd.get_dummies(dataFrame[catfeat],      sparse=False)],axis=1)
 		dataFrame = dataFrame.drop([catfeat],axis=1)
 	
-	return dataFrame		
+	return dataFrame
+		
 
-def SplitTrainValData(data, label, val_size=0.3):
-	stratifiedShuffle = cross_validation.ShuffleSplit(len(data), n_iter=1,test_size=val_size, random_state=0)
-	for trainidx, validx in stratifiedShuffle:
-		train, val = data.iloc[trainidx],data.iloc[validx]
-		trainlabel, vallabel = label.iloc[trainidx], label.iloc[validx]
+def SplitTrainValData(data, label, val_size=0.3, use_random_shuffle=True):
+	data_np = data.values	
+	if use_random_shuffle:
+		stratifiedShuffle = cross_validation.ShuffleSplit(len(data), n_iter=1,test_size=val_size, random_state=0)
+		for trainidx, validx in stratifiedShuffle:
+			train, val = data.iloc[trainidx].values,data.iloc[validx].values
+			trainlabel, vallabel = label.iloc[trainidx].values, label.iloc[validx].values
+	else:
+		vallength = int(len(data)*val_size)
+		train = data_np[:(len(data)-vallength)]
+		val = data_np[len(data)-vallength:len(data)]	
+		trainlabel = label[:-vallength]
+		vallabel = label[-vallength:]
 	return train, val, trainlabel, vallabel
 
 
@@ -93,15 +102,17 @@ if __name__=="__main__":
 	macro = pd.read_csv("../raw_data/RussianRealEstate/macro.csv")
 
 	trainLabel = traindf['price_doc']
+	logtrainLabel = np.log1p(trainLabel)
+	id_Test = testdf['id']
 
+	traindf.drop(['id','price_doc'], axis=1,inplace=True)
+	testdf.drop(['id'],axis=1, inplace=True)
+	unifiedData = pd.concat([traindf, testdf])
 	
-	traindf.drop(['price_doc'], axis=1)
-
-	unifiedData = traindf.append(testdf)
-	
 
 
-	unifiedData = pd.merge(unifiedData, macro, how = 'left', on=['timestamp'])
+	unifiedData = pd.merge_ordered(unifiedData, macro, how = 'left', on=['timestamp'])
+	print unifiedData.shape	
 	
 	unifiedData['year']=pd.DatetimeIndex(unifiedData['timestamp']).year
 	unifiedData['month']=pd.DatetimeIndex(unifiedData['timestamp']).month
@@ -115,22 +126,24 @@ if __name__=="__main__":
 
 	unifiedData = HandleCategoricalData(unifiedData,categoricalFeatures)
 
-	traindata = unifiedData.iloc[:len(traindf)-1]
-	testdata = unifiedData.iloc[len(traindf):]
+	traindata = unifiedData.iloc[:len(traindf)]
+	testdata = unifiedData.iloc[len(traindf):].values
 
-	trainData, valData, trainlabel, vallabel = SplitTrainValData(traindata,trainLabel)
+	trainData, valData, trainlabel, vallabel = SplitTrainValData(traindata,logtrainLabel,0.2,True)
 
 
-	trainData = np.array(trainData)
-	valData = np.array(valData)
-	testData = np.array(testdata)
+	#trainData = np.array(trainData)
+	#valData = np.array(valData)
+	#testData = np.array(testdata)
 	#trainlabel = np.log1p(trainlabel)
 	#vallabel = np.log1p(vallabel)
 
-	pred=xgboost_pred(trainData, trainlabel, valData, vallabel, testData)
-	OutputPredictions = pd.DataFrame(pred, index = testdf['id'])
-	OutputPredictions.columns = [ 'price_doc']
-	OutputPredictions.to_csv('submission'+ time.strftime("%Y%m%d-%H%M")+".csv")
+	pred=xgboost_pred(trainData, trainlabel, valData, vallabel, testdata)
+	pred = np.exp(pred)-1
+
+	OutputPredictions = pd.DataFrame({'id': id_Test, 'price_doc': pred})
+
+	OutputPredictions.to_csv('submission'+ time.strftime("%Y%m%d-%H%M")+".csv", index=False)
 
 	
 
